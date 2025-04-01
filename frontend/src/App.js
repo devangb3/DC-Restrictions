@@ -19,6 +19,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  TextField,
 } from '@mui/material';
 import axios from 'axios';
 
@@ -39,6 +40,7 @@ const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner'];
 
 function App() {
   const [selectedRestrictions, setSelectedRestrictions] = useState([]);
+  const [customRestriction, setCustomRestriction] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -79,6 +81,13 @@ function App() {
         ? prev.filter((r) => r !== restriction)
         : [...prev, restriction]
     );
+  };
+
+  const handleCustomRestrictionAdd = () => {
+    if (customRestriction.trim()) {
+      setSelectedRestrictions((prev) => [...prev, customRestriction.trim()]);
+      setCustomRestriction('');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -146,7 +155,7 @@ function App() {
           <Typography variant="h6" sx={{ mb: 2 }}>
             Select Your Dietary Restrictions
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
             {DIETARY_OPTIONS.map((option) => (
               <Chip
                 key={option}
@@ -156,6 +165,40 @@ function App() {
               />
             ))}
           </Stack>
+
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <TextField
+              fullWidth
+              label="Add Custom Dietary Restriction"
+              value={customRestriction}
+              onChange={(e) => setCustomRestriction(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCustomRestrictionAdd();
+                }
+              }}
+            />
+            <Button
+              variant="outlined"
+              onClick={handleCustomRestrictionAdd}
+              disabled={!customRestriction.trim()}
+            >
+              Add
+            </Button>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+            {selectedRestrictions.map((restriction) => (
+              <Chip
+                key={restriction}
+                label={restriction}
+                onDelete={() => handleRestrictionToggle(restriction)}
+                color="primary"
+                variant="outlined"
+              />
+            ))}
+          </Box>
 
           <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <FormControl sx={{ minWidth: 200 }}>

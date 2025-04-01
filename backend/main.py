@@ -95,9 +95,10 @@ async def analyze_menu(request: MenuRequest):
             f"Description: {item_desc}\n"
             for item_name, item_desc in menu_items.items()
         ])
-        
+        logger.info(f"Menu content: {menu_content}")
         # Prepare prompt for Gemini
-        prompt = f"""Given the following menu items and dietary restrictions, list only the items that are safe to eat.
+        prompt = f"""Given the following menu items and dietary restrictions, analyze each item and list only the items that are safe to eat.
+Consider both common dietary restrictions and any specific custom restrictions provided.
 
 Menu Items:
 {menu_content}
@@ -105,14 +106,51 @@ Menu Items:
 Dietary Restrictions:
 {', '.join(request.dietary_restrictions)}
 
-Please list only the names of the safe items, one per line."""
+Please analyze each menu item considering:
+1. Common dietary restrictions (vegetarian, vegan, gluten-free, etc.)
+2. Allergens and ingredients
+3. Any specific custom restrictions provided
+
+For each safe item, provide a brief explanation of why it's safe to eat.
+Format your response as:
+Item Name
+- Explanation of why it's safe
+
+Only include items that are safe to eat based on ALL the provided restrictions."""
 
         # Get response from Gemini
         response = await chat.send_message(prompt)
         response_text = response.text
-        logger.info(f"Response from Gemini: {response_text}")
-        # Parse the response into a list of safe items
-        safe_items = [{"name": item.strip()} for item in response_text.split('\n') if item.strip()]
+        
+        # Parse the response into a list of safe items with explanations
+        safe_items = []
+        current_item = None
+        current_explanation = []
+        
+        for line in response_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith('-'):
+                current_explanation.append(line[1:].strip())
+            elif current_item is None:
+                current_item = line
+            else:
+                if current_item and current_explanation:
+                    safe_items.append({
+                        "name": current_item,
+                        "explanation": ' '.join(current_explanation)
+                    })
+                current_item = line
+                current_explanation = []
+        
+        # Add the last item if exists
+        if current_item and current_explanation:
+            safe_items.append({
+                "name": current_item,
+                "explanation": ' '.join(current_explanation)
+            })
         
         return MenuResponse(
             menu_items=safe_items,
