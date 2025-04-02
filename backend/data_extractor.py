@@ -4,8 +4,8 @@ import json
 from bs4 import BeautifulSoup
 
 # Set the input and output file names
-html_filename = "backend/Tercero.html"
-csv_filename = "backend/menu.csv"
+html_filename = "Tercero.html"
+csv_filename = "menu2.csv"
 
 # Read the HTML file
 with open(html_filename, "r", encoding="utf-8") as file:
@@ -56,18 +56,30 @@ for day_div in day_containers:
                     continue
                 recipe_name = span.get_text(strip=True)
                 
+                # Initialize a dictionary for this recipe’s details
+                recipe_details = {}
+
                 # Find the ingredients inside this recipe li.
                 # We look for an <h6> tag with text "Ingredients" and get the next <p> tag.
-                ingredients = ""
                 h6_tags = sibling.find_all("h6")
                 for h6 in h6_tags:
                     if h6.get_text(strip=True).lower() == "ingredients":
                         p = h6.find_next("p")
                         if p:
-                            ingredients = p.get_text(strip=True)
+                            recipe_details["Ingredients"] = p.get_text(strip=True)
                         break
-                # Save recipe if ingredients were found (or leave ingredients blank if not)
-                recipe_dict[recipe_name] = ingredients
+
+                # Find the calorie information
+                for h6 in h6_tags:
+                    if h6.get_text(strip=True).lower() == "calories":
+                        p = h6.find_next("p")
+                        if p:
+                            recipe_details["Calories"] = p.get_text(strip=True)
+                        break
+                
+                # Save the recipe details if any information was found
+                if recipe_details:
+                    recipe_dict[recipe_name] = recipe_details
 
         # If we found recipes for this meal section, add a row
         if recipe_dict:

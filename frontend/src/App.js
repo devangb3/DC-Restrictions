@@ -49,6 +49,7 @@ function App() {
   const [selectedDay, setSelectedDay] = useState('');
   const [selectedMealTime, setSelectedMealTime] = useState('');
   const [loadingDays, setLoadingDays] = useState(true);
+  const [maxCalories, setMaxCalories] = useState('');
 
   useEffect(() => {
     // Fetch available days from the backend
@@ -106,6 +107,7 @@ function App() {
         dietary_restrictions: selectedRestrictions,
         day: selectedDay,
         meal_time: selectedMealTime,
+        max_calories: maxCalories ? parseInt(maxCalories) : null,
       });
       setResult(response.data);
     } catch (err) {
@@ -122,24 +124,9 @@ function App() {
   const renderMenuItem = (item) => (
     <Card key={item.name} sx={{ mb: 2 }}>
       <CardContent>
-        <Typography variant="h6" gutterBottom>
+        <Typography variant="h6">
           {item.name}
         </Typography>
-        {item.description && (
-          <Typography variant="body2" color="text.secondary" paragraph>
-            {item.description}
-          </Typography>
-        )}
-        {item.explanation && (
-          <Typography variant="body2" color="primary" paragraph>
-            {item.explanation}
-          </Typography>
-        )}
-        {item.risks && (
-          <Typography variant="body2" color="error" paragraph>
-            Potential Risks: {item.risks}
-          </Typography>
-        )}
       </CardContent>
     </Card>
   );
@@ -239,6 +226,15 @@ function App() {
                 ))}
               </Select>
             </FormControl>
+
+            <TextField
+              label="Max Calories (Optional)"
+              type="number"
+              value={maxCalories}
+              onChange={(e) => setMaxCalories(e.target.value)}
+              sx={{ minWidth: 200 }}
+              inputProps={{ min: 0 }}
+            />
           </Box>
 
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
@@ -263,20 +259,23 @@ function App() {
       {result && (
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h5" gutterBottom>
-            Menu Analysis Results
+            Menu Analysis for {result.date} {selectedMealTime}
           </Typography>
-          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-            Menu Date: {result.date}
+          {result.total_calories > 0 && (
+            <Typography variant="subtitle1" color="primary" gutterBottom>
+              Total Calories: {result.total_calories}
+              {maxCalories && result.total_calories > parseInt(maxCalories) && (
+                <Typography component="span" color="error" sx={{ ml: 1 }}>
+                  (Exceeds your limit of {maxCalories} calories)
+                </Typography>
+              )}
+            </Typography>
+          )}
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            Safe Menu Items:
           </Typography>
-          
-          <Box sx={{ mt: 2 }}>
-            {result.menu_items.map(renderMenuItem)}
-            {result.menu_items.length === 0 && (
-              <Typography variant="body1" color="text.secondary" align="center">
-                No safe menu items found for your dietary restrictions
-              </Typography>
-            )}
-          </Box>
+          {result.menu_items.map((item) => renderMenuItem(item))}
         </Paper>
       )}
     </Container>
