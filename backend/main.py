@@ -8,8 +8,7 @@ from pydantic import BaseModel
 from google import genai
 import os
 from dotenv import load_dotenv
-import pathlib
-import re
+
 
 
 # Configure logging
@@ -49,28 +48,33 @@ class MenuResponse(BaseModel):
     date: str
     total_calories: int
 
-def read_menu_csv():
+def read_menu_csv(path: str = "menu2.csv") -> dict:
+    """
+    Load the CSV that the scraper produced and return a nested
+    dict  →  {day → {meal_time → recipe_dict}}
+    """
     try:
-        logger.info("Reading menu from CSV...")
-        menu_data = {}
-        
-        with open('backend/menu2.csv', 'r', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
+        logger.info("Reading menu from CSV…")
+        menu_data: dict[str, dict[str, dict]] = {}
+
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+
             for row in reader:
-                day = row['Day']
-                meal_time = row['Meal Time']
-                recipe_dict = json.loads(row['Recipe Dict'])
-                
-                if day not in menu_data:
-                    menu_data[day] = {}
-                menu_data[day][meal_time] = recipe_dict
-                
-        logger.info(f"Successfully read menu data for {len(menu_data)} days")
+                day        = row["Day"].strip()
+                meal_time  = row["Meal Time"].strip().title()
+                recipes    = json.loads(row["Recipe Dict"])
+
+                # 2.  build {day → {meal_time → recipes}}
+                menu_data.setdefault(day, {})[meal_time] = recipes
+
+        logger.info("Loaded %d days from %s", len(menu_data), path)
         return menu_data
-        
-    except Exception as e:
-        logger.error(f"Error reading menu CSV: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=400, detail=f"Error reading menu CSV: {str(e)}")
+
+    except Exception as exc:
+        logger.exception("Error reading menu CSV")
+        raise HTTPException(status_code=400,
+                            detail=f"Error reading menu CSV: {exc}")
 
 @app.post("/analyze-menu", response_model=MenuResponse)
 async def analyze_menu(request: MenuRequest):
@@ -79,28 +83,24 @@ async def analyze_menu(request: MenuRequest):
         logger.info(f"Selected day: {request.day}")
         logger.info(f"Selected meal time: {request.meal_time}")
         logger.info(f"Max calories: {request.max_calories}")
-        
-        # Read menu data
+
         menu_data = read_menu_csv()
         
         if not menu_data:
             logger.error("No menu data found")
             raise HTTPException(status_code=400, detail="No menu data found")
-        
-        # Get menu items for selected day and meal time
+ 
         if request.day not in menu_data or request.meal_time not in menu_data[request.day]:
             raise HTTPException(status_code=400, detail=f"No menu data found for {request.day} {request.meal_time}")
             
         menu_items = menu_data[request.day][request.meal_time]
         
-        # Prepare menu content for Gemini
         menu_content = "\n".join([
             f"Item: {item_name}\n"
             f"Description: {item_desc}\n"
             for item_name, item_desc in menu_items.items()
         ])
 
-        # Prepare prompt for Gemini
         calorie_instruction = ""
         if request.max_calories:
             calorie_instruction = f"\nMaximum calories allowed: {request.max_calories}\nPlease ensure the sum of the calories of the recommended items do not exceed this limit."
@@ -131,12 +131,15 @@ If they do, construct a new response that contains all the important food nutrie
 Also return the response in above format only do not add any more text or comments."""
 
 
-        # Get response from Gemini
+        
         response = await chat.send_message(prompt)
+
+        if not response or not response.text:
+            logger.error("No response from Gemini")
+            raise HTTPException(status_code=500, detail="No response from Gemini")
         response_text = response.text
         logger.info(f"Response from Gemini: {response_text}")
         
-        # Split the response into lines and filter out empty lines
         safe_items = [
             {"name": line.strip()}
             for line in response_text.split('\n')
@@ -147,7 +150,7 @@ Also return the response in above format only do not add any more text or commen
             menu_items=safe_items,
             recommendations=response_text,
             date=request.day,
-            total_calories=0  # Since we're not tracking calories anymore
+            total_calories=0
         )
         
     except Exception as e:
