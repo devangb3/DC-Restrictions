@@ -42,6 +42,3 @@ ENV/
 .env.test.local
 .env.production.local
 
-# Data files
-*.csv
-*.html 
